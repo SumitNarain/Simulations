@@ -82,6 +82,7 @@ def m_snps_sim(rs_ids, sim_correlation):
 
 
 if __name__ == "__main__":
+    #generating random variant names and creating a region correlation matrix of [100,100]
     snp_rsid = ["rs" + str(x) for x in range(100)]
     region_correlation = np.diag(np.ones(100))
     rs_ids, marginal_beta, marginal_se, marginal_z, marginal_p, n, M, true_beta, heritability, correlation = m_snps_sim(
