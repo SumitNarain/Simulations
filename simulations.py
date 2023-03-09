@@ -326,7 +326,6 @@ else:
 #file1.write("SNP\tEffect\tP-value\n")
 
 num_true_causal_snps = {}
-
 # start of the simulation by component
 for component in component_to_cor:
 
@@ -352,7 +351,7 @@ for component in component_to_cor:
                 if snp in snp_to_true_beta_params:
                     for true_beta_params in snp_to_true_beta_params[snp]:
                         if true_beta_params[3] is None or true_beta_params[3] == it:
-                            if random.random() < true_beta_params[0]:
+                            if random.random() <= true_beta_params[0]:
                                 cur_true_beta[snp_to_index[snp]] = np.random.normal(loc=true_beta_params[1], scale=np.sqrt(true_beta_params[2]), size=1)[0]
                             break
 
@@ -372,7 +371,7 @@ for component in component_to_cor:
         v = np.ones(len(component_to_snp[component])) * 0.12
         # beta is also a factor of sqrt(N) higher
         # y = np.array(np.matmul(cor_matrix, cur_true_beta) * np.sqrt(options.N) + np.matmul(L, u))[0:]
-
+        # Fixme - optimize
         S = ((np.matmul(cor_matrix, cur_true_beta) * np.sqrt(options.N)) / np.sqrt(cur_geno_var)) + np.matmul(L, v)
         B = S * np.sqrt(cur_geno_var / options.N)
         for snp in component_to_snp[component]:
