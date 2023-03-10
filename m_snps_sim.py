@@ -8,8 +8,11 @@ import math
 
 
 def m_snps_sim(rs_ids, sim_correlation):
+
+    #Obtains the first row of the sim correlation and sets sample size (n)
     M = sim_correlation.shape[0]
     n = 100000
+
     maf_v = np.random.uniform(0, 1, M)
     genotype = np.random.binomial(2, maf_v, (n, M)).T
     # samples = list()
@@ -83,8 +86,8 @@ def m_snps_sim(rs_ids, sim_correlation):
 
 if __name__ == "__main__":
     #generating random variant names and creating a region correlation matrix of [100,100]
-    snp_rsid = ["rs" + str(x) for x in range(100)]
-    region_correlation = np.diag(np.ones(100))
+    snp_rsid = ["rs" + str(x) for x in range(10000)]
+    region_correlation = np.diag(np.ones(10000))
     rs_ids, marginal_beta, marginal_se, marginal_z, marginal_p, n, M, true_beta, heritability, correlation = m_snps_sim(
         snp_rsid, region_correlation)
 
