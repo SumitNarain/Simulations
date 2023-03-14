@@ -7,14 +7,15 @@ import scipy.stats
 import gzip
 import subprocess
 import math
+import matplotlib.pyplot as plt
 
 usage = "usage: %prog [options]"
 parser = OptionParser(usage)
 parser.add_option("","--bim-file", default=None)  # all SNPs in the region
 parser.add_option("","--ld-file", default=None)  # in row form
 parser.add_option("","--ld-threshold", default=0, type="float")
-parser.add_option("","--h2",default=0.01,type="float")  # 1-h2 is added as phenotypic variance
-parser.add_option("","--N",default=1000,type="float")  # sample size for sumstat simulations
+parser.add_option("","--h2",default=0.10,type="float")  # 1-h2 is added as phenotypic variance
+parser.add_option("","--N",default=100000,type="float")  # sample size for sumstat simulations
 parser.add_option("","--beta-file", default=None)  # specify mapping from SNP to true beta
 parser.add_option("","--beta-dist-file", default=None)  # specify a distribution of beta values to be assigned to each SNP within a region. No header, columns are chrom, begin, end, p, mean, var [replicate] where if the optional [1-based] replicate column is present, it will apply the region only to the specified replicate. If multiple lines apply to a SNP, it will take the first one
 parser.add_option("","--max-component-size",type="int",default=np.inf)  # control the maximum number of SNPs to be included in an LD-block (smaller is faster)
@@ -326,6 +327,11 @@ else:
 #file1.write("SNP\tEffect\tP-value\n")
 
 num_true_causal_snps = {}
+
+#Used to Plot marginal versus marginal betas
+marginal_beta_all = []
+marginal_beta_method_2_all = []
+true_beta_all= []
 # start of the simulation by component
 for component in component_to_cor:
 
@@ -367,21 +373,46 @@ for component in component_to_cor:
         # var(y)/var(x) is the standard error of the beta
         # but here we keep the factor of N out of the var(X), which means that the u term is too high by a factor of sqrt(N)
         # u = np.random.normal(loc=0, scale=np.sqrt(cur_geno_var), size=len(component_to_snp[component]))
-        #v = np.random.normal(loc=0, scale=1, size=len(component_to_snp[component]))
-        v = np.ones(len(component_to_snp[component])) * 0.12
+        v = np.random.normal(loc=0, scale=1, size=len(component_to_snp[component]))
+        #v = np.ones(len(component_to_snp[component])) * 0.12
         # beta is also a factor of sqrt(N) higher
         # y = np.array(np.matmul(cor_matrix, cur_true_beta) * np.sqrt(options.N) + np.matmul(L, u))[0:]
         # Fixme - optimize
+
+        # Adding different calculation for marginal betas
+        M = cor_matrix.shape[0]
+        sigma_e = 1 - options.h2
+
+        beta_corr = np.diag(np.ones(M) * sigma_e / options.N)
+        L2 = np.linalg.cholesky(beta_corr)
+
+        marginal_beta_method_2 = (np.matmul(cor_matrix, cur_true_beta)) + np.matmul(L2, v)
+        standard_error_method_2 = np.sqrt(options.N / cur_geno_var)
+        Z_score_method_2 = marginal_beta_method_2 / standard_error_method_2
+        #End of different calculation of marginal betas
+
         S = ((np.matmul(cor_matrix, cur_true_beta) * np.sqrt(options.N)) / np.sqrt(cur_geno_var)) + np.matmul(L, v)
         B = S * np.sqrt(cur_geno_var / options.N)
+
         for snp in component_to_snp[component]:
             if len(component_to_snp[component]) == 1:
                 beta = B[0]
             else:
                 beta = B[snp_to_index[snp]]
+                beta_method_2 = marginal_beta_method_2[snp_to_index[snp]]
+
+            # Used for the plot later to compare between both marginal betas
+            marginal_beta_all.append(beta)
+            marginal_beta_method_2_all.append(beta_method_2)
+
             se = np.sqrt(cur_geno_var[snp_to_index[snp]] / options.N)
+            se_method_2 = standard_error_method_2[snp_to_index[snp]]
+
             z_score = float(beta)/float(se)
+            z_score_method_2_ind = Z_score_method_2[snp_to_index[snp]]
+
             pvalue = str(2 * scipy.stats.norm.sf(abs(z_score)))
+            pvalue_method_2 = str(2 * scipy.stats.norm.sf(abs(z_score_method_2_ind)))
             # dividing out sqrt(N) from beta
             # beta /= np.sqrt(options.N)
             # se now gets final sqrt((1-h2)/(Np(1-p)))
@@ -396,7 +427,7 @@ for component in component_to_cor:
                 alt = snp_to_alt[snp]
                 ref = snp_to_ref[snp]
                 N = str(options.N)
-                line_gwas = snp + "\t" + alt + "\t" + ref + "\t" + N + "\t" + str(z_score) + "\t" + pvalue + "\t" + "+\t+-+-+\t" + str(beta) + "\t" + str(se)
+                line_gwas = snp + "\t" + alt + "\t" + ref + "\t" + N + "\t" + str(z_score_method_2_ind) + "\t" + pvalue_method_2 + "\t" + "+\t+-+-+\t" + str(beta_method_2) + "\t" + str(standard_error_method_2)
                 line_locus = snp + "\t" + chrom + "\t" + pos + "\t" + ref + "\t" + alt + "\t" + str(it+1) + "\t" + str(beta) + "\t" + str(se) + "\t" + pvalue
                 gwas_fh.write(line_gwas + "\n")
                 locus_fh.write(line_locus + "\n")
@@ -406,6 +437,11 @@ for component in component_to_cor:
     #print("Component %s:" % component)
     #print("y:")
     #print(y)
+
+plt.figure(1)
+plt.scatter(marginal_beta_method_2_all, marginal_beta_all)
+plt.title("marginal betas method 2 vs marginal betas")
+plt.show()
 
 if options.num_causal_snps_out is not None:
     out_suma_fh = open(options.num_causal_snps_out, 'w')
